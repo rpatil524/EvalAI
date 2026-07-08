@@ -70,13 +70,17 @@ COPY requirements/ /code/requirements/
 # Note: BuildKit cache mount persists outside container, but we clean internal cache for final image size
 # Install prerequisite packages first (needed for compiling native extensions)
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir --no-compile -U cffi service_identity cython==0.29 numpy==1.18.1 && \
+    pip install --no-cache-dir --no-compile -U cffi service_identity cython==0.29.36 numpy==1.18.1 && \
     pip install --no-cache-dir --no-compile -r requirements/prod.txt && \
-    pip install --no-cache-dir --no-compile -r requirements/worker_py3_9.txt && \
-    # Clean up pip cache and Python bytecode (directories first, then files)
-    rm -rf /root/.cache/pip && \
+    pip install --no-cache-dir --no-compile -r requirements/worker_py3_9.txt
+
+# Best-effort bytecode cleanup; keep separate so pip failures fail the build.
+RUN rm -rf /root/.cache/pip && \
     find /usr/local/lib/python3.9/site-packages -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python3.9/site-packages \( -name "*.pyc" -o -name "*.pyo" \) -delete 2>/dev/null || true
+
+# Verify worker runtime imports required by submission_worker.py.
+RUN python -c "import boto3, botocore, django, requests, yaml"
 
 # Collect OpenCV runtime libraries to architecture-independent location
 # This allows multi-arch builds (amd64/arm64)
