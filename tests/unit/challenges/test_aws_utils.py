@@ -3689,6 +3689,12 @@ class TestSetupEC2(TestCase):
         )
 
 
+@pytest.fixture
+def celery_queue_env(monkeypatch):
+    monkeypatch.setenv("CELERY_QUEUE_NAME", "evalai-celery")
+
+
+@pytest.mark.usefixtures("celery_queue_env")
 class TestRegisterTaskDefByChallengePk:
     @patch("challenges.aws_utils.JwtToken.objects.get")
     @patch("challenges.models.ChallengeEvaluationCluster.objects.get")
@@ -6163,6 +6169,9 @@ class TestWorkerImageHelpers(TestCase):
             )
         )
 
+    @patch.dict(
+        "os.environ", {"CELERY_QUEUE_NAME": "evalai-celery"}, clear=False
+    )
     @patch("challenges.aws_utils.JwtToken.objects.get")
     @patch("challenges.models.ChallengeEvaluationCluster.objects.get")
     @patch("challenges.utils.get_aws_credentials_for_challenge")
@@ -6192,6 +6201,9 @@ class TestWorkerImageHelpers(TestCase):
         self.assertEqual(task_def, {"family": "queue"})
         mock_task_definition.format.assert_called_once()
 
+    @patch.dict(
+        "os.environ", {"CELERY_QUEUE_NAME": "evalai-celery"}, clear=False
+    )
     @patch("challenges.aws_utils.JwtToken.objects.get")
     @patch("challenges.models.ChallengeEvaluationCluster.objects.get")
     @patch("challenges.utils.get_aws_credentials_for_challenge")
@@ -6229,6 +6241,9 @@ class TestWorkerImageHelpers(TestCase):
         self.assertIsNone(error)
         self.assertEqual(task_def, {"family": "queue"})
 
+    @patch.dict(
+        "os.environ", {"CELERY_QUEUE_NAME": "evalai-celery"}, clear=False
+    )
     @patch("challenges.aws_utils.JwtToken.objects.get")
     @patch("challenges.models.ChallengeEvaluationCluster.objects.get")
     @patch("challenges.utils.get_aws_credentials_for_challenge")
@@ -6271,6 +6286,21 @@ class TestWorkerImageHelpers(TestCase):
             task_def, error = build_task_definition_dict(challenge, "queue")
         self.assertIsNone(error)
         self.assertEqual(task_def, {"family": "queue"})
+
+    @patch.dict("os.environ", {}, clear=True)
+    def test_build_task_definition_dict_requires_celery_queue_name(self):
+        challenge = MagicMock(
+            pk=1,
+            is_docker_based=False,
+            worker_cpu_cores=1024,
+            worker_memory=2048,
+            ephemeral_storage=21,
+        )
+
+        task_def, error = build_task_definition_dict(challenge, "queue")
+
+        self.assertIsNone(task_def)
+        self.assertIn("CELERY_QUEUE_NAME", error["Error"])
 
     @patch("challenges.aws_utils.get_boto3_client")
     @patch("challenges.aws_utils.refresh_task_definition_for_challenge")
